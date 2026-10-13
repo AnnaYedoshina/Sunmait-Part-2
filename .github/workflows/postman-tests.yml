@@ -1,17 +1,40 @@
-name: Automated API tests using Postman CLI
+name: Postman API Tests
 
-on: push
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # Позволяет запускать тесты вручную кнопкой
 
 jobs:
-  automated-api-tests:
-    runs-on: macos-latest
+  run-postman-tests:
+    runs-on: ubuntu-latest # Используем Linux (быстрее и бесплатнее, чем macos)
     steps:
-      - uses: actions/checkout@v4
+      # 1. Скачиваем код репозитория
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Устанавливаем Postman CLI (версия для Linux)
       - name: Install Postman CLI
-        run: |
-          curl -o- "https://dl-cli.pstmn.io/install/osx_64.sh" | sh
-      - name: Login to Postman CLI
+        run: curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh
+
+      # 3. Авторизуемся с помощью ключа из секретов
+      - name: Login to Postman
         run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
-      - name: Run API tests
+
+      # 4. Запускаем ВАШУ коллекцию и генерируем HTML-отчёт
+      - name: Run Collection with HTML Report
         run: |
-          postman collection run "39018561-046e7c54-1a6c-4b17-b3d1-2ab63a7f7bd0" -e "39018561-6e0f4703-124b-49b5-8794-43ef9923bef2"
+          postman collection run "39018561-046e7c54-1a6c-4b17-b3d1-2ab63a7f7bd0" \
+            -e "39018561-6e0f4703-124b-49b5-8794-43ef9923bef2" \
+            --reporters cli,html \
+            --reporter-html-export postman-report.html
+
+      # 5. Сохраняем отчёт как артефакт (даже если тесты упали)
+      - name: Upload HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-report
+          path: postman-report.html
